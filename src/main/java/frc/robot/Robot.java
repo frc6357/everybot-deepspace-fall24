@@ -22,25 +22,48 @@ public class Robot extends TimedRobot {
   /*
    * Autonomous selection options.
    */
-  private static final String kNothingAuto = "do nothing";
-  private static final String kLaunchAndDrive = "launch drive";
-  private static final String kLaunch = "launch";
-  private static final String kDrive = "drive";
-  private String m_autoSelected;
-  private final SendableChooser<String> m_chooser = new SendableChooser<>();
+
+  enum AutoAction {
+    AUTO_NOP,
+    AUTO_DEPLOY_LVL1,
+    AUTO_DEPLOY_LVL2,
+    AUTO_LRKT_PANEL_NEAR,
+    AUTO_LRKT_PANEL_FAR,
+    AUTO_LRKT_CARGO_LVL1,
+    AUTO_LCSHP_PANEL_POS1,
+    AUTO_LCSHP_PANEL_POS2,
+    AUTO_LCSHP_PANEL_POS3,
+    AUTO_LCSHP_PANEL_POS4,
+    AUTO_LCSHP_CARGO_POS1,
+    AUTO_LCSHP_CARGO_POS2,
+    AUTO_LCSHP_CARGO_POS3,
+    AUTO_LCSHP_CARGO_POS4,
+    AUTO_RRKT_PANEL_NEAR,
+    AUTO_RRKT_PANEL_FAR,
+    AUTO_RRKT_CARGO_LVL1,
+    AUTO_RCSHP_PANEL_POS1,
+    AUTO_RCSHP_PANEL_POS2,
+    AUTO_RCSHP_PANEL_POS3,
+    AUTO_RCSHP_PANEL_POS4,
+    AUTO_RCSHP_CARGO_POS1,
+    AUTO_RCSHP_CARGO_POS2,
+    AUTO_RCSHP_CARGO_POS3,
+    AUTO_RCSHP_CARGO_POS4,
+  }
+  private final SendableChooser<AutoAction> m_chooser = new SendableChooser<>();
 
   /*
    * Drive motor controller instances.
    *
    * Change the id's to match your robot.
-   * Change kBrushed to kBrushless if you are uisng NEOs.
+   * Change kBrushed to kBrushless if you are using NEOs.
    * The rookie kit comes with CIMs which are brushed motors.
    * Use the appropriate other class if you are using different controllers.
    */
-  CANSparkBase leftRear = new CANSparkMax(1, MotorType.kBrushed);
-  CANSparkBase leftFront = new CANSparkMax(2, MotorType.kBrushed);
-  CANSparkBase rightRear = new CANSparkMax(3, MotorType.kBrushed);
-  CANSparkBase rightFront = new CANSparkMax(4, MotorType.kBrushed);
+  CANSparkBase leftRear = new CANSparkMax(1, MotorType.kBrushless);
+  CANSparkBase leftFront = new CANSparkMax(2, MotorType.kBrushless);
+  CANSparkBase rightRear = new CANSparkMax(3, MotorType.kBrushless);
+  CANSparkBase rightFront = new CANSparkMax(4, MotorType.kBrushless);
 
   /*
    * A class provided to control your drivetrain. Different drive styles can be passed to differential drive:
@@ -49,25 +72,19 @@ public class Robot extends TimedRobot {
   DifferentialDrive m_drivetrain;
 
   /*
-   * Launcher motor controller instances.
+   FIXME: additional objects for mechanism controls
+   1 - Cargo belt motor drive belt: brushless (NEO) using SparkMax
+   1 - Hatch motor (window motor): need details
+   */
+
+  /*
+   * Intake motor controller instances.
    *
    * Like the drive motors, set the CAN id's to match your robot or use different
-   * motor controller classses (VictorSPX) to match your robot as necessary.
-   *
-   * Both of the motors used on the KitBot launcher are CIMs which are brushed motors
+   * motor controller classes (CANSparkMax) to match your robot as necessary.
    */
-  CANSparkBase m_launchWheel = new CANSparkMax(6, MotorType.kBrushed);
-  CANSparkBase m_feedWheel = new CANSparkMax(5, MotorType.kBrushed);
+  CANSparkBase m_cargoBelt = new CANSparkMax(5, MotorType.kBrushless);
 
-  /**
-   * Roller Claw motor controller instance.
-  */
-  CANSparkBase m_rollerClaw = new CANSparkMax(8, MotorType.kBrushed);
-  /**
-   * Climber motor controller instance. In the stock Everybot configuration a
-   * NEO is used, replace with kBrushed if using a brushed motor.
-   */
-  CANSparkBase m_climber = new CANSparkMax(7, MotorType.kBrushless);
 
     /**
    * The starter code uses the most generic joystick class.
@@ -79,8 +96,6 @@ public class Robot extends TimedRobot {
    * Buttons index from 0
    */
   Joystick m_driverController = new Joystick(0);
-
-
   Joystick m_manipController = new Joystick(1);
 
 
@@ -92,54 +107,21 @@ public class Robot extends TimedRobot {
   static final int DRIVE_CURRENT_LIMIT_A = 60;
 
   /**
-   * How many amps the feeder motor can use.
+   * How many amps the cargo belt can use.
    */
-  static final int FEEDER_CURRENT_LIMIT_A = 60;
+  static final int CARGO_BELT_CURRENT_LIMIT_A = 30;
 
   /**
-   * Percent output to run the feeder when expelling note
+   * Percent output to run the cargo belt when expelling cargo
    */
-  static final double FEEDER_OUT_SPEED = 1.0;
+  static final double CARGO_BELT_CSHIP_SPEED = 1.0;
+  static final double CARGO_BELT_RKT_SPEED = 1.0;
 
   /**
-   * Percent output to run the feeder when intaking note
+   * Percent output to run the cargo belt when grabbing cargo
    */
-  static final double FEEDER_IN_SPEED = -.4;
+  static final double CARGO_BELT_IN_SPEED = -.4;
 
-  /**
-   * Percent output for amp or drop note, configure based on polycarb bend
-   */
-  static final double FEEDER_AMP_SPEED = .4;
-
-  /**
-   * How many amps the launcher motor can use.
-   *
-   * In our testing we favored the CIM over NEO, if using a NEO lower this to 60
-   */
-  static final int LAUNCHER_CURRENT_LIMIT_A = 60;
-
-  /**
-   * Percent output to run the launcher when intaking AND expelling note
-   */
-  static final double LAUNCHER_SPEED = 1.0;
-
-  /**
-   * Percent output for scoring in amp or dropping note, configure based on polycarb bend
-   * .14 works well with no bend from our testing
-   */
-  static final double LAUNCHER_AMP_SPEED = .17;
-  /**
-   * Percent output for the roller claw
-   */
-  static final double CLAW_OUTPUT_POWER = .5;
-  /**
-   * Percent output to help retain notes in the claw
-   */
-  static final double CLAW_STALL_POWER = .1;
-  /**
-   * Percent output to power the climber
-   */
-  static final double CLIMER_OUTPUT_POWER = 1;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -147,10 +129,11 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotInit() {
-    m_chooser.setDefaultOption("do nothing", kNothingAuto);
-    m_chooser.addOption("launch note and drive", kLaunchAndDrive);
-    m_chooser.addOption("launch", kLaunch);
-    m_chooser.addOption("drive", kDrive);
+    m_chooser.setDefaultOption("do nothing", AutoAction.AUTO_NOP);
+    m_chooser.addOption("Deploy from Level 1", AutoAction.AUTO_DEPLOY_LVL1);
+    m_chooser.addOption("Deploy from Level 2", AutoAction.AUTO_DEPLOY_LVL2);
+    m_chooser.addOption("Deliver cargo to cargo ship, left", AutoAction.AUTO_LCSHP_CARGO_POS1);
+    m_chooser.addOption("Deliver cargo to cargo ship, right", AutoAction.AUTO_RCSHP_CARGO_POS1);
     SmartDashboard.putData("Auto choices", m_chooser);
 
 
@@ -178,35 +161,16 @@ public class Robot extends TimedRobot {
     m_drivetrain = new DifferentialDrive(leftFront, rightFront);
 
     /*
-     * Launcher wheel(s) spinning the wrong direction? Change to true here.
+     * Cargo belt spinning the wrong direction? Change to true here.
      *
      * Add white tape to wheel to help determine spin direction.
      */
-    m_feedWheel.setInverted(true);
-    m_launchWheel.setInverted(true);
+    m_cargoBelt.setInverted(true);
 
     /*
-     * Apply the current limit to the launching mechanism
+     * Apply the current limit to the cargo mechanism
      */
-    m_feedWheel.setSmartCurrentLimit(FEEDER_CURRENT_LIMIT_A);
-    m_launchWheel.setSmartCurrentLimit(LAUNCHER_CURRENT_LIMIT_A);
-
-    /*
-     * Inverting and current limiting for roller claw and climber
-     */
-    m_rollerClaw.setInverted(false);
-    m_climber.setInverted(false);
-
-    m_rollerClaw.setSmartCurrentLimit(60);
-    m_climber.setSmartCurrentLimit(60);
-
-    /*
-     * Motors can be set to idle in brake or coast mode.
-     * 
-     * Brake mode is best for these mechanisms
-     */
-    m_rollerClaw.setIdleMode(IdleMode.kBrake);
-    m_climber.setIdleMode(IdleMode.kBrake);
+    m_cargoBelt.setSmartCurrentLimit(CARGO_BELT_CURRENT_LIMIT_A);
   }
 
   /**
@@ -229,50 +193,58 @@ public class Robot extends TimedRobot {
    * Speeds can be changed as desired and will be set to 0 when
    * performing an auto that does not require the system
    */
-  double AUTO_LAUNCH_DELAY_S;
+  double AUTO_CARGO_DELAY_S;
   double AUTO_DRIVE_DELAY_S;
 
   double AUTO_DRIVE_TIME_S;
 
   double AUTO_DRIVE_SPEED;
-  double AUTO_LAUNCHER_SPEED;
+  double AUTO_CARGO_BELT_SPEED;
 
   double autonomousStartTime;
 
   @Override
   public void autonomousInit() {
-    m_autoSelected = m_chooser.getSelected();
-
     leftRear.setIdleMode(IdleMode.kBrake);
     leftFront.setIdleMode(IdleMode.kBrake);
     rightRear.setIdleMode(IdleMode.kBrake);
     rightFront.setIdleMode(IdleMode.kBrake);
 
-    AUTO_LAUNCH_DELAY_S = 2;
+    AUTO_CARGO_DELAY_S = 2;
     AUTO_DRIVE_DELAY_S = 3;
 
     AUTO_DRIVE_TIME_S = 2.0;
     AUTO_DRIVE_SPEED = -0.5;
-    AUTO_LAUNCHER_SPEED = 1;
+    AUTO_CARGO_BELT_SPEED = CARGO_BELT_CSHIP_SPEED;
     
     /*
-     * Depeding on which auton is selected, speeds for the unwanted subsystems are set to 0
-     * if they are not used for the selected auton
+     * Depending on which auto is selected, speeds for the unwanted subsystems are set to 0
+     * if they are not used for the selected auto
      *
-     * For kDrive you can also change the kAutoDriveBackDelay
+     * For deploy, you can also change the drive delay
      */
-    if(m_autoSelected == kLaunch)
-    {
-      AUTO_DRIVE_SPEED = 0;
-    }
-    else if(m_autoSelected == kDrive)
-    {
-      AUTO_LAUNCHER_SPEED = 0;
-    }
-    else if(m_autoSelected == kNothingAuto)
-    {
-      AUTO_DRIVE_SPEED = 0;
-      AUTO_LAUNCHER_SPEED = 0;
+    switch(m_chooser.getSelected()) {
+      case AUTO_NOP:
+        AUTO_DRIVE_SPEED = 0;
+        AUTO_CARGO_BELT_SPEED = 0;
+        break;
+      case AUTO_DEPLOY_LVL1:
+        AUTO_CARGO_BELT_SPEED = 0;
+        break;
+      case AUTO_DEPLOY_LVL2:
+        AUTO_DRIVE_SPEED *= 0.8;  // slow down when coming from level2
+        AUTO_DRIVE_TIME_S += 3;   // additional drive time from level2
+        AUTO_CARGO_BELT_SPEED = 0;
+        break;
+      case AUTO_LCSHP_CARGO_POS1:
+      case AUTO_RCSHP_CARGO_POS1:
+        // leave drive and expected belt speed at defaults
+        break;
+      default:
+        // Not supported
+        AUTO_DRIVE_SPEED = 0;
+        AUTO_CARGO_BELT_SPEED = 0;
+        break;
     }
 
     autonomousStartTime = Timer.getFPGATimestamp();
@@ -285,36 +257,33 @@ public class Robot extends TimedRobot {
     double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
 
     /*
-     * Spins up launcher wheel until time spent in auto is greater than AUTO_LAUNCH_DELAY_S
+     * Drives until time is greater than AUTO_DRIVE_TIME_S
      *
-     * Feeds note to launcher until time is greater than AUTO_DRIVE_DELAY_S
+     * Wait time is greater than AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S for complete stop
      *
-     * Drives until time is greater than AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S
+     * Spins up cargo belt until time spent in auto is greater than AUTO_CARGO_DELAY_S, plus the stop time
      *
-     * Does not move when time is greater than AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S
+     * Stops cargo belt when time is greater than AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S + AUTO_CARGO_DELAY_S
      */
-    if(timeElapsed < AUTO_LAUNCH_DELAY_S)
+    if(timeElapsed < AUTO_DRIVE_TIME_S)
     {
-      m_launchWheel.set(AUTO_LAUNCHER_SPEED);
-      m_drivetrain.arcadeDrive(0, 0);
-
-    }
-    else if(timeElapsed < AUTO_DRIVE_DELAY_S)
-    {
-      m_feedWheel.set(AUTO_LAUNCHER_SPEED);
-      m_drivetrain.arcadeDrive(0, 0);
+      m_drivetrain.arcadeDrive(AUTO_DRIVE_SPEED, 0);
     }
     else if(timeElapsed < AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S)
     {
-      m_launchWheel.set(0);
-      m_feedWheel.set(0);
-      m_drivetrain.arcadeDrive(AUTO_DRIVE_SPEED, 0);
+      m_cargoBelt.set(0);
+      m_drivetrain.arcadeDrive(0, 0);
+    }
+    else if (timeElapsed < AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S + AUTO_CARGO_DELAY_S) {
+      m_drivetrain.arcadeDrive(0, 0);
+      m_cargoBelt.set(AUTO_CARGO_BELT_SPEED);
     }
     else
     {
+      m_cargoBelt.set(0);
       m_drivetrain.arcadeDrive(0, 0);
     }
-    /* For an explanation on differintial drive, squaredInputs, arcade drive and tank drive see the bottom of this file */
+    /* For an explanation on differential drive, squaredInputs, arcade drive and tank drive see the bottom of this file */
   }
 
   /** This function is called once when teleop is enabled. */
@@ -343,98 +312,44 @@ public class Robot extends TimedRobot {
   public void teleopPeriodic() {
 
     /*
-     * Spins up the launcher wheel
-     */
-    if (m_manipController.getRawButton(1)) {
-      m_launchWheel.set(LAUNCHER_SPEED);
-    }
-    else if(m_manipController.getRawButtonReleased(1))
-    {
-      m_launchWheel.set(0);
-    }
-
-    /*
-     * Spins feeder wheel, wait for launch wheel to spin up to full speed for best results
+     * Spins cargo belt to place in cargo ship
      */
     if (m_manipController.getRawButton(6))
     {
-      m_feedWheel.set(FEEDER_OUT_SPEED);
+      m_cargoBelt.set(CARGO_BELT_CSHIP_SPEED);
     }
     else if(m_manipController.getRawButtonReleased(6))
     {
-      m_feedWheel.set(0);
+      m_cargoBelt.set(0);
     }
 
     /*
-     * While the button is being held spin both motors to intake note
+     * While the button is being held spin both cargo belt motor to intake cargo
      */
     if(m_manipController.getRawButton(5))
     {
-      m_launchWheel.set(-LAUNCHER_SPEED);
-      m_feedWheel.set(FEEDER_IN_SPEED);
+      m_cargoBelt.set(CARGO_BELT_IN_SPEED);
     }
     else if(m_manipController.getRawButtonReleased(5))
     {
-      m_launchWheel.set(0);
-      m_feedWheel.set(0);
+      m_cargoBelt.set(0);
     }
 
     /*
-     * While the amp button is being held, spin both motors to "spit" the note
-     * out at a lower speed into the amp
+     * While the rocket ship button is being held, spin cargo belt motors to expel cargo
+     * out at a slightly lower speed into the lower rocket ship level
      *
      * (this may take some driver practice to get working reliably)
      */
     if(m_manipController.getRawButton(2))
     {
-      m_feedWheel.set(FEEDER_AMP_SPEED);
-      m_launchWheel.set(LAUNCHER_AMP_SPEED);
+      m_cargoBelt.set(CARGO_BELT_RKT_SPEED);
     }
     else if(m_manipController.getRawButtonReleased(2))
     {
-      m_feedWheel.set(0);
-      m_launchWheel.set(0);
+      m_cargoBelt.set(0);
     }
 
-    /**
-     * Hold one of the two buttons to either intake or exjest note from roller claw
-     * 
-     * One button is positive claw power and the other is negative
-     * 
-     * It may be best to have the roller claw passively on throughout the match to 
-     * better retain notes but we did not test this
-     */ 
-    if(m_manipController.getRawButton(3))
-    {
-      m_rollerClaw.set(CLAW_OUTPUT_POWER);
-    }
-    else if(m_manipController.getRawButton(4))
-    {
-      m_rollerClaw.set(-CLAW_OUTPUT_POWER);
-    }
-    else
-    {
-      m_rollerClaw.set(0);
-    }
-
-    /**
-     * POV is the D-PAD (directional pad) on your controller, 0 == UP and 180 == DOWN
-     * 
-     * After a match re-enable your robot and unspool the climb
-     */
-    if(m_manipController.getPOV() == 0)
-    {
-      m_climber.set(1);
-    }
-    else if(m_manipController.getPOV() == 180)
-    {
-      m_climber.set(-1);
-    }
-    else
-    {
-      m_climber.set(0);
-    }
-  
     /*
      * Negative signs are here because the values from the analog sticks are backwards
      * from what we want. Pushing the stick forward returns a negative when we want a
@@ -443,7 +358,7 @@ public class Robot extends TimedRobot {
      * If you want to change the joystick axis used, open the driver station, go to the
      * USB tab, and push the sticks determine their axis numbers
      *
-     * This was setup with a logitech controller, note there is a switch on the back of the
+     * This was set up with a logitech controller, note there is a switch on the back of the
      * controller that changes how it functions
      */
     m_drivetrain.arcadeDrive(-m_driverController.getRawAxis(1), -m_driverController.getRawAxis(4), false);
@@ -458,7 +373,7 @@ public class Robot extends TimedRobot {
  * Arcade allows one stick to be pressed forward/backwards to power both sides of the drivetrain to move straight forwards/backwards.
  * A second stick (or the second axis of the same stick) can be pushed left/right to turn the robot in place.
  * When one stick is pushed forward and the other is pushed to the side, the robot will power the drivetrain
- * such that it both moves fowards and turns, turning in an arch.
+ * such that it both moves forwards and turns, turning in an arch.
  *
  * Tank drive allows a single stick to control of a single side of the robot.
  * Push the left stick forward to power the left side of the drive train, causing the robot to spin around to the right.
@@ -466,7 +381,7 @@ public class Robot extends TimedRobot {
  * Push both at equal distances to drive forwards/backwards and use at different speeds to turn in different arcs.
  * Push both sticks in opposite directions to spin in place.
  *
- * arcardeDrive can be replaced with tankDrive like so:
+ * arcadeDrive can be replaced with tankDrive like so:
  *
  * m_drivetrain.tankDrive(-m_driverController.getRawAxis(1), -m_driverController.getRawAxis(5))
  *
