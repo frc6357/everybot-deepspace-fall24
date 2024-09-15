@@ -78,13 +78,20 @@ public class Robot extends TimedRobot {
    */
 
   /*
-   * Intake motor controller instances.
+   * Cargo motor controller instances.
    *
    * Like the drive motors, set the CAN id's to match your robot or use different
    * motor controller classes (CANSparkMax) to match your robot as necessary.
    */
   CANSparkBase m_cargoBelt = new CANSparkMax(5, MotorType.kBrushless);
 
+  /*
+   * Hatch grabber motor controller instance.
+   *
+   * Like the drive motors, set the CAN id's to match your robot or use different
+   * motor controller classes (CANSparkMax) to match your robot as necessary.
+   */
+  CANSparkBase m_hatchGrabber = new CANSparkMax(6, MotorType.kBrushed);
 
     /**
    * The starter code uses the most generic joystick class.
@@ -110,6 +117,11 @@ public class Robot extends TimedRobot {
    * How many amps the cargo belt can use.
    */
   static final int CARGO_BELT_CURRENT_LIMIT_A = 30;
+
+  /**
+    * How many amps the hatch grabber motor can use.
+    */
+  static final int HATCH_GRABBER_CURRENT_LIMIT_A = 5;
 
   /**
    * Percent output to run the cargo belt when expelling cargo
@@ -171,6 +183,18 @@ public class Robot extends TimedRobot {
      * Apply the current limit to the cargo mechanism
      */
     m_cargoBelt.setSmartCurrentLimit(CARGO_BELT_CURRENT_LIMIT_A);
+
+    /*
+     * Cargo belt spinning the wrong direction? Change to true here.
+     *
+     * Add white tape to wheel to help determine spin direction.
+     */
+    m_hatchGrabber.setInverted(false);
+
+    /*
+     * Apply the current limit to the cargo mechanism
+     */
+    m_hatchGrabber.setSmartCurrentLimit(HATCH_GRABBER_CURRENT_LIMIT_A);
   }
 
   /**
@@ -216,7 +240,7 @@ public class Robot extends TimedRobot {
     AUTO_DRIVE_TIME_S = 2.0;
     AUTO_DRIVE_SPEED = -0.5;
     AUTO_CARGO_BELT_SPEED = CARGO_BELT_CSHIP_SPEED;
-    
+
     /*
      * Depending on which auto is selected, speeds for the unwanted subsystems are set to 0
      * if they are not used for the selected auto
@@ -240,6 +264,7 @@ public class Robot extends TimedRobot {
       case AUTO_RCSHP_CARGO_POS1:
         // leave drive and expected belt speed at defaults
         break;
+      // Additional options for cargo/hatch scoring positions
       default:
         // Not supported
         AUTO_DRIVE_SPEED = 0;
@@ -349,6 +374,15 @@ public class Robot extends TimedRobot {
     {
       m_cargoBelt.set(0);
     }
+
+    /*
+     * Code here to handle button presses for hatch panel grab/release
+     * NOTE: it may be necessary to consider that the motor should only turn
+     *       a set number of degrees and stop, or alternatively run only until
+     *       it reaches the stop position.
+     *
+     * (this may take some driver practice to get working reliably)
+     */
 
     /*
      * Negative signs are here because the values from the analog sticks are backwards
